@@ -31,9 +31,13 @@ webserver = Flask(__name__)
 @webserver.route('/api/register', methods=['POST'])
 def register():
     with connect_to_dbx() as cnx:
-        reg_body = request.get_json()
-        user = data.users.register(cnx, reg_body)
-        return ''
+        try:
+            reg_body = request.get_json()
+            user = data.users.register(cnx, reg_body)
+            return jsonify(user)
+        except Exception as e:
+            return jsonify({'err': str(e)}), 500
+
 
 # palautetaan data tietokannasta json datana
 # http://localhost:3000/api/categories

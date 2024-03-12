@@ -6,6 +6,9 @@ def register(cnx, reg_body):
         cursor.execute('INSERT INTO users (username, password, auth_role_id) VALUES (%s, %s, %s)',
                         (reg_body['username'], pl.hash(reg_body['password']), 1))
         cnx.commit()
+        user = {'id': cursor.lastrowid, 'username': reg_body['username']}
+        cursor.close()
+        return user
     except Exception as e:
         cnx.rollback()
         raise e
