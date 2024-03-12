@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 
 import data.categories
 import data.recipes
+import data.users
 from db import connect_to_dbx, connect_to_db
 
 webserver = Flask(__name__)
@@ -27,6 +28,12 @@ webserver = Flask(__name__)
 #     except Exception as e:
 #         return render_template('error.html', str(e))
 
+@webserver.route('/api/register', methods=['POST'])
+def register():
+    with connect_to_dbx() as cnx:
+        reg_body = request.get_json()
+        user = data.users.register(cnx, reg_body)
+        return ''
 
 # palautetaan data tietokannasta json datana
 # http://localhost:3000/api/categories
