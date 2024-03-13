@@ -1,3 +1,4 @@
+import jwt
 from flask import Flask, render_template, jsonify, request
 
 import data.categories
@@ -27,6 +28,43 @@ webserver = Flask(__name__)
 #         return render_template('categories.html', rows=categories)
 #     except Exception as e:
 #         return render_template('error.html', str(e))
+@webserver.route('/api/login', methods=['POST'])
+def login():
+    with connect_to_dbx() as cnx:
+        try:
+            reg_body = request.get_json()
+            access_token = data.users.login(cnx, reg_body)
+            return jsonify({'access_token': access_token})
+        except Exception as e:
+            return jsonify({'err': str(e)}), 500
+
+@webserver.route('/api/account')
+def get_account():
+    with connect_to_db() as cnx:
+        try:
+            auth_header = request.headers.get('Authorization')
+            if auth_header is None:
+                return jsonify({'err': 'Unauthorized'}), 401
+
+            token_parts = auth_header.split(' ')
+            if len(token_parts) != 2:
+                return jsonify({'err': 'Unauthorized'}), 401
+
+            if token_parts[0] != 'Bearer':
+                return jsonify({'err': 'Unauthorized'}), 401
+
+            token = token_parts[1]
+            payload = jwt.decode(token, data.users.SECRET, algorithms=['HS256'])
+
+            cursor = cnx.cursor()
+            cursor.execute('SELECT id, username, auth_role_id FROM users WHERE access_jti = (%s)', (payload['sub'],))
+            account = cursor.fetchone()
+            if account is None:
+                return jsonify({'err': 'Unauthorized'}), 401
+            return {'account': {'id': account[0], 'username': account[1], 'role_id': account[2]}}
+
+        except Exception as e:
+            return jsonify({'err': str(e)}), 401
 
 @webserver.route('/api/register', methods=['POST'])
 def register():

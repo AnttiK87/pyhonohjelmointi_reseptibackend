@@ -1,4 +1,36 @@
+import datetime
+import uuid
+
+import jwt
 from passlib.hash import pbkdf2_sha512 as pl
+
+SECRET = 'nvaonvaoivnafinvmpaoskf+we9i@£{$[€[{[[{€$€GSBTBRHYNB5W4Q34R5rf£${£€$€]$[£{$€49jfmrioamvpoiah3r8hfenIDSC'
+def login(cnx, reg_body):
+    try:
+        cursor = cnx.cursor()
+        cursor.execute('SELECT * FROM users WHERE username = (%s)', (reg_body['username'],))
+        user = cursor.fetchone()
+        if user is None:
+            raise Exception('User not found!')
+        cursor.close()
+
+        passwor_correct = pl.verify(reg_body['password'], user[2])
+        if not passwor_correct:
+            raise Exception('User not found!')
+
+        sub = str(uuid.uuid4())
+
+        cursor = cnx.cursor()
+        cursor.execute('UPDATE users SET access_jti = %s WHERE username = %s', (sub, reg_body['username']))
+        cnx.commit()
+
+        # encode luo payloadista (dictionary) access_token_jwt
+        access_token = jwt.encode({'sub': sub, 'iat': datetime.datetime.now(datetime.UTC),
+                    'nbf': datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=10)}, SECRET)
+
+        return access_token
+    except Exception as e:
+        cnx.rollback()
 
 def register(cnx, reg_body):
     try:
