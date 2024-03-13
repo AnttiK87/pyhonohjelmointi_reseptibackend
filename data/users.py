@@ -44,3 +44,25 @@ def register(cnx, reg_body):
     except Exception as e:
         cnx.rollback()
         raise e
+
+def get_logged_in_user(cnx, sub):
+    cursor = cnx.cursor()
+    cursor.execute('SELECT id, username, auth_role_id FROM users WHERE access_jti = (%s)', (sub,))
+    user = cursor.fetchone()
+    if user is None:
+        raise Exception('User not found!')
+    return {'id': user[0], 'username': user[1], 'role': user[2]}
+
+def remove_user_by_id(cnx, user_id):
+    cursor = None
+    try:
+        cursor = cnx.cursor()
+        cursor.execute('DELETE FROM users WHERE id = %s', (user_id,))
+        cnx.commit()
+    except Exception as e:
+        cnx.rollback()
+        raise e
+    finally:
+        if cursor is not None:
+            cursor.close()
+
