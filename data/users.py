@@ -32,6 +32,16 @@ def login(cnx, reg_body):
     except Exception as e:
         cnx.rollback()
 
+def logout(cnx, logged_in_user):
+    try:
+        cursor = cnx.cursor()
+        cursor.execute('UPDATE users SET access_jti = NULL WHERE id = (%s)', (logged_in_user['id'],))
+        cnx.commit()
+        cursor.close()
+    except Exception as e:
+        cnx.rollback()
+        raise e
+
 def register(cnx, reg_body):
     try:
         cursor = cnx.cursor()

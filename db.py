@@ -3,9 +3,9 @@ import mysql.connector
 
 
 # pari tapaa miten yhteyden voi tehdä alempi parempi
-def connect_to_dbx():
-    cnx = mysql.connector.connect(user='root', password='', host='localhost', database='reseptit')
-    return cnx
+# def connect_to_dbx():
+#     cnx = mysql.connector.connect(user='root', password='', host='localhost', database='reseptit')
+#     return cnx
 
 
 # funktio joka yieldaa on "generaattori"
@@ -19,6 +19,6 @@ def connect_to_db():
         print("Error while connecting to db")
         yield None
     finally:
-        # finally suoritetaan jokatapauksessa virheen hallinnan tuloksesta riippumatta
+        # finally suoritetaan jokatapauksessa virheenhallinnan tuloksesta riippumatta
         if cnx is not None:
             cnx.close()
