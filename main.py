@@ -29,6 +29,25 @@ webserver = Flask(__name__)
 #     except Exception as e:
 #         return render_template('error.html', str(e))
 
+def validate_data(schema):
+    def decorator(route_handler):
+        def wrapper(cnx, *args, **kwargs):
+            if request.method in ['POST', 'PUT']:
+                reg_body = request.get_json()
+                # Tarkista, että request.get_json() ei palauta None, eli datan tulee olla JSON-muodossa
+                if reg_body is None:
+                    return jsonify({'error': 'Invalid JSON data provided'}), 400
+                    # Tarkista, että kaikki pakolliset kentät ovat saatavilla ja vastaavat annettua schemaa
+                for field in schema:
+                    if field not in reg_body or not isinstance(reg_body[field], schema[field]):
+                        return jsonify({'error': f'Invalid data provided for field: {field}'}), 400
+            return route_handler(cnx, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def get_db_connection(route_handler):
     def wrapper(*args, **kwargs):
         # with blockia voidaan käyttää, kun contextlib.contexmanager dekoraattori on käytössä
@@ -41,6 +60,7 @@ def get_db_connection(route_handler):
 
 def require_login(route_handler):
     def wrapper(cnx, *args, **kwargs):
+
         try:
             auth_header = request.headers.get('Authorization')
             if auth_header is None:
@@ -64,7 +84,6 @@ def require_login(route_handler):
 
     return wrapper
 
-
 def require_role(role_id):
     def decorator(route_handler):
         def wrapper(cnx, logged_in_user, *args, **kwargs):
@@ -80,11 +99,13 @@ def require_role(role_id):
 @webserver.route('/api/account')
 @get_db_connection
 @require_login
-def get_account(logged_in_user):
+def get_account(cnx, logged_in_user):
     return jsonify({'account': logged_in_user})
 
-@webserver.route('/api/register', methods=['POST'])
+
+@webserver.route('/api/register', methods=['POST'], endpoint='register')
 @get_db_connection
+@validate_data({'username': str, 'password': str})
 def register(cnx):
     try:
         reg_body = request.get_json()
@@ -92,8 +113,11 @@ def register(cnx):
         return jsonify(user)
     except Exception as e:
         return jsonify({'err': str(e)}), 500
-@webserver.route('/api/login', methods=['POST'])
+
+
+@webserver.route('/api/login', methods=['POST'], endpoint='login')
 @get_db_connection
+@validate_data({'username': str, 'password': str})
 def login(cnx):
     try:
         reg_body = request.get_json()
@@ -109,7 +133,7 @@ def login(cnx):
 def logout(cnx, logged_in_user):
     try:
         data.users.logout(cnx, logged_in_user)
-        return "logged out", 200
+        return jsonify({'Message': 'logged out'}), 200
     except Exception as e:
         return jsonify({'err': str(e)}), 500
 
@@ -117,8 +141,9 @@ def logout(cnx, logged_in_user):
 # palautetaan data tietokannasta json datana
 # http://localhost:3000/api/categories
 # Kaikkien tietueiden haku ja uuden lisääminen
-@webserver.route('/api/categories', methods=['POST', 'GET'])
+@webserver.route('/api/categories', methods=['POST', 'GET'], endpoint='categories')
 @get_db_connection
+@validate_data({'name': str})
 def categories_handler(cnx):
     if request.method == 'GET':
 
@@ -139,8 +164,9 @@ def categories_handler(cnx):
 
 # http://localhost:3000/api/categories/id
 # haku, poisto ja muokkaus id:n mukaan
-@webserver.route('/api/categories/<category_id>', methods=['GET', 'PUT', 'DELETE'])
+@webserver.route('/api/categories/<category_id>', methods=['GET', 'PUT', 'DELETE'], endpoint='category')
 @get_db_connection
+@validate_data({'name': str})
 def category_handler(cnx, category_id):
     if request.method == 'GET':
         try:
@@ -165,45 +191,52 @@ def category_handler(cnx, category_id):
             if affected_rows == 0:
                 return jsonify({'error': 'Category not found'}), 404
             else:
-                return "Deleted successfully", 200
+                return jsonify({'Message': 'Deleted successfully'}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 404
 
 
-@webserver.route('/api/categories/<category_id>/recipes', methods=['POST', 'GET'])
+@webserver.route('/api/categories/<category_id>/recipes', methods=['GET'], endpoint='recipes')
 @get_db_connection
 def recipes_handler(cnx, category_id):
-    if request.method == 'GET':
+    try:
+        recipes = data.recipes.get_recipes_by_category(cnx, category_id)
+        return jsonify(recipes)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-        try:
-            recipes = data.recipes.get_recipes_by_category(cnx, category_id)
-            return jsonify(recipes)
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
 
-    elif request.method == 'POST':
+@webserver.route('/api/categories/<category_id>/recipes', methods=['POST'], endpoint='recipes_add')
+@get_db_connection
+@require_login
+@validate_data({'name': str, 'description': str})
+def recipes_adder(cnx, logged_in_user, category_id):
         try:
             reg_body = request.get_json()
-            recipe = data.recipes.insert_recipe_by_category(cnx, reg_body, category_id)
+            recipe = data.recipes.insert_recipe_by_category(cnx, reg_body, logged_in_user, category_id)
             return jsonify(recipe)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-
-@webserver.route('/api/recipes/<recipe_id>', methods=['GET', 'PUT', 'DELETE'])
+@webserver.route('/api/recipes/<recipe_id>', methods=['GET'], endpoint='recipe')
 @get_db_connection
-def recipe_handler(cnx, recipe_id):
-    if request.method == 'GET':
-        try:
-            recipe = data.recipes.get_recipe_by_id(cnx, recipe_id)
-            return jsonify({'recipe': recipe})
-        except Exception as e:
-            return jsonify({'error': str(e)}), 404
-    elif request.method == 'PUT':
+def recipe_modifier(cnx, recipe_id):
+    try:
+        recipe = data.recipes.get_recipe_by_id(cnx, recipe_id)
+        return jsonify({'recipe': recipe})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
+
+@webserver.route('/api/recipes/<recipe_id>', methods=['PUT', 'DELETE'], endpoint='recipe_modifier')
+@get_db_connection
+@require_login
+@validate_data({'name': str, 'description': str})
+def recipe_modifier(cnx, logged_in_user, recipe_id):
+    if request.method == 'PUT':
         try:
             reg_body = request.get_json()
             recipe = data.recipes.get_recipe_by_id(cnx, recipe_id)
-            data.recipes.update_recipe_by_id(cnx, recipe, reg_body)
+            data.recipes.update_recipe_by_id(cnx, recipe, reg_body, logged_in_user)
             return jsonify({'recipe': {
                 'category_id': recipe['category_id'],
                 'created_at': recipe['created_at'],
@@ -218,11 +251,12 @@ def recipe_handler(cnx, recipe_id):
             return jsonify({'error': str(e)}), 404
     elif request.method == 'DELETE':
         try:
-            affected_rows = data.recipes.delete_recipe_by_id(cnx, recipe_id)
+            recipe = data.recipes.get_recipe_by_id(cnx, recipe_id)
+            affected_rows = data.recipes.delete_recipe_by_id(cnx, recipe_id, recipe, logged_in_user)
             if affected_rows == 0:
-                return jsonify({'error': 'Category not found'}), 404
+                return jsonify({'error': 'Recipe not found'}), 404
             else:
-                return "Deleted successfully", 200
+                return jsonify({'Message': 'Deleted successfully'}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 404
 
@@ -231,10 +265,10 @@ def recipe_handler(cnx, recipe_id):
 @get_db_connection
 @require_login
 @require_role(4)
-def delete_user(cnx, user_id):
+def delete_user(cnx, logged_in_user, user_id):
     try:
         data.users.remove_user_by_id(cnx, user_id)
-        return ""
+        return jsonify({'Message': 'Deleted successfully'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

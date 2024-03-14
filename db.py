@@ -7,8 +7,6 @@ import mysql.connector
 #     cnx = mysql.connector.connect(user='root', password='', host='localhost', database='reseptit')
 #     return cnx
 
-
-# funktio joka yieldaa on "generaattori"
 @contextlib.contextmanager
 def connect_to_db():
     cnx = None
@@ -19,6 +17,5 @@ def connect_to_db():
         print("Error while connecting to db")
         yield None
     finally:
-        # finally suoritetaan jokatapauksessa virheenhallinnan tuloksesta riippumatta
         if cnx is not None:
             cnx.close()
