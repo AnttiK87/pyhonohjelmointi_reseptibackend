@@ -1,3 +1,4 @@
+# db query for getting all categories
 def get_categories(cnx):
     cursor = cnx.cursor()
     _query = "SELECT * FROM categories ORDER BY id"
@@ -9,7 +10,7 @@ def get_categories(cnx):
     cursor.close()
     return categories_list
 
-
+# db query for getting specific category by id
 def get_category_by_id(cnx, category_id):
     cursor = cnx.cursor()
     _query = "SELECT id, name FROM categories WHERE id = (%s)"
@@ -21,7 +22,7 @@ def get_category_by_id(cnx, category_id):
         raise Exception('Category not found')
     return {'id': category[0], 'name': category[1]}
 
-
+# db query for changing recipe by id
 def update_category_by_id(cnx, category, request_data):
     try:
         cursor = cnx.cursor()
@@ -34,7 +35,7 @@ def update_category_by_id(cnx, category, request_data):
         print(e)
         raise e
 
-
+# db query for deleting recipe by id
 def delete_category_by_id(cnx, category_id):
     try:
         cursor = cnx.cursor()
@@ -49,7 +50,7 @@ def delete_category_by_id(cnx, category_id):
         print(e)
         raise e
 
-
+# db query for adding category
 def insert_category(cnx, request_data):
     try:
         cursor = cnx.cursor()

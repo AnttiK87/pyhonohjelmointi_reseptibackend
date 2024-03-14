@@ -29,15 +29,16 @@ webserver = Flask(__name__)
 #     except Exception as e:
 #         return render_template('error.html', str(e))
 
+# decorator for checking that reg_body content is correct
 def validate_data(schema):
     def decorator(route_handler):
         def wrapper(cnx, *args, **kwargs):
             if request.method in ['POST', 'PUT']:
                 reg_body = request.get_json()
-                # Tarkista, että request.get_json() ei palauta None, eli datan tulee olla JSON-muodossa
+                # check request.get_json() returns data as JSON-format
                 if reg_body is None:
                     return jsonify({'error': 'Invalid JSON data provided'}), 400
-                    # Tarkista, että kaikki pakolliset kentät ovat saatavilla ja vastaavat annettua schemaa
+                # Check that all nessesary data is provided according to given schema
                 for field in schema:
                     if field not in reg_body or not isinstance(reg_body[field], schema[field]):
                         return jsonify({'error': f'Invalid data provided for field: {field}'}), 400
@@ -47,7 +48,7 @@ def validate_data(schema):
 
     return decorator
 
-
+# decorator for enabling connection
 def get_db_connection(route_handler):
     def wrapper(*args, **kwargs):
         # with blockia voidaan käyttää, kun contextlib.contexmanager dekoraattori on käytössä
@@ -57,7 +58,7 @@ def get_db_connection(route_handler):
 
     return wrapper
 
-
+# decorator for checking is user logged in
 def require_login(route_handler):
     def wrapper(cnx, *args, **kwargs):
 
@@ -84,6 +85,7 @@ def require_login(route_handler):
 
     return wrapper
 
+# decorator for checking user role id same as given parameter
 def require_role(role_id):
     def decorator(route_handler):
         def wrapper(cnx, logged_in_user, *args, **kwargs):
@@ -95,14 +97,14 @@ def require_role(role_id):
 
     return decorator
 
-
+# route for showing user account.
 @webserver.route('/api/account')
 @get_db_connection
 @require_login
 def get_account(cnx, logged_in_user):
     return jsonify({'account': logged_in_user})
 
-
+# route for registering user.
 @webserver.route('/api/register', methods=['POST'], endpoint='register')
 @get_db_connection
 @validate_data({'username': str, 'password': str})
@@ -114,7 +116,7 @@ def register(cnx):
     except Exception as e:
         return jsonify({'err': str(e)}), 500
 
-
+# route for user login.
 @webserver.route('/api/login', methods=['POST'], endpoint='login')
 @get_db_connection
 @validate_data({'username': str, 'password': str})
@@ -126,7 +128,7 @@ def login(cnx):
     except Exception as e:
         return jsonify({'err': str(e)}), 500
 
-
+# route for user logout.
 @webserver.route('/api/logout', methods=['POST'], endpoint='logout')
 @get_db_connection
 @require_login
@@ -138,9 +140,22 @@ def logout(cnx, logged_in_user):
         return jsonify({'err': str(e)}), 500
 
 
-# palautetaan data tietokannasta json datana
+# route for deleting user by id.
+# requires logging in and admin rights from user
+@webserver.route('/api/users/<user_id>', methods=['DELETE'], endpoint='delete_user')
+@get_db_connection
+@require_login
+@require_role(4)
+def delete_user(cnx, logged_in_user, user_id):
+    try:
+        data.users.remove_user_by_id(cnx, user_id)
+        return jsonify({'Message': 'Deleted successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# route for getting and adding categories.
+# returns data as json data from db
 # http://localhost:3000/api/categories
-# Kaikkien tietueiden haku ja uuden lisääminen
 @webserver.route('/api/categories', methods=['POST', 'GET'], endpoint='categories')
 @get_db_connection
 @validate_data({'name': str})
@@ -163,7 +178,7 @@ def categories_handler(cnx):
 
 
 # http://localhost:3000/api/categories/id
-# haku, poisto ja muokkaus id:n mukaan
+# route for getting, updating and deleting category by id.
 @webserver.route('/api/categories/<category_id>', methods=['GET', 'PUT', 'DELETE'], endpoint='category')
 @get_db_connection
 @validate_data({'name': str})
@@ -195,7 +210,8 @@ def category_handler(cnx, category_id):
         except Exception as e:
             return jsonify({'error': str(e)}), 404
 
-
+# route for getting recipes by category.
+# had to make own function for this because I wanted that this works without logging in.
 @webserver.route('/api/categories/<category_id>/recipes', methods=['GET'], endpoint='recipes')
 @get_db_connection
 def recipes_handler(cnx, category_id):
@@ -205,7 +221,8 @@ def recipes_handler(cnx, category_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
+# route for adding recipe to specific category.
+# requires logging in
 @webserver.route('/api/categories/<category_id>/recipes', methods=['POST'], endpoint='recipes_add')
 @get_db_connection
 @require_login
@@ -218,6 +235,8 @@ def recipes_adder(cnx, logged_in_user, category_id):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+# route for getting recipes by id.
+# had to make own function for this because I wanted that this works without logging in.
 @webserver.route('/api/recipes/<recipe_id>', methods=['GET'], endpoint='recipe')
 @get_db_connection
 def recipe_modifier(cnx, recipe_id):
@@ -227,6 +246,8 @@ def recipe_modifier(cnx, recipe_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 404
 
+# route for changing and deleting recipe by id.
+# requires logging in
 @webserver.route('/api/recipes/<recipe_id>', methods=['PUT', 'DELETE'], endpoint='recipe_modifier')
 @get_db_connection
 @require_login
@@ -259,18 +280,6 @@ def recipe_modifier(cnx, logged_in_user, recipe_id):
                 return jsonify({'Message': 'Deleted successfully'}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 404
-
-
-@webserver.route('/api/users/<user_id>', methods=['DELETE'], endpoint='delete_user')
-@get_db_connection
-@require_login
-@require_role(4)
-def delete_user(cnx, logged_in_user, user_id):
-    try:
-        data.users.remove_user_by_id(cnx, user_id)
-        return jsonify({'Message': 'Deleted successfully'}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 
 # tämä ehto estää Flask-webserverin käynnistymisen, jos main tuodaan/importataan toiseen scriptiin

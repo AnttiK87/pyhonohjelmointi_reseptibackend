@@ -5,7 +5,7 @@ from passlib.hash import pbkdf2_sha512 as pl
 
 SECRET = 'nvaonvaoivnafinvmpaoskf+we9i@£{$[€[{[[{€$€GSBTBRHYNB5W4Q34R5rf£${£€$€]$[£{$€49jfmrioamvpoiah3r8hfenIDSC'
 
-
+# db query for adding user
 def register(cnx, reg_body):
     try:
         cursor = cnx.cursor()
@@ -19,7 +19,7 @@ def register(cnx, reg_body):
         cnx.rollback()
         raise e
 
-
+# db query for logging user in by checking username and password and then giving user access token
 def login(cnx, reg_body):
     try:
         cursor = cnx.cursor()
@@ -40,14 +40,17 @@ def login(cnx, reg_body):
         cnx.commit()
 
         # encode luo payloadista (dictionary) access_token_jwt
-        access_token = jwt.encode({'sub': sub, 'iat': datetime.datetime.now(datetime.UTC),
-                                   'nbf': datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=10)}, SECRET)
+        access_token = jwt.encode({'sub': sub,
+                                   'iat': datetime.datetime.now(datetime.UTC),
+                                   'nbf': datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=10)},
+                                  SECRET)
 
         return access_token
     except Exception as e:
         cnx.rollback()
+        raise e
 
-
+# db query for logging user out by removing access token
 def logout(cnx, logged_in_user):
     try:
         cursor = cnx.cursor()
@@ -58,7 +61,7 @@ def logout(cnx, logged_in_user):
         cnx.rollback()
         raise e
 
-
+# db query for getting logged in user
 def get_logged_in_user(cnx, sub):
     cursor = cnx.cursor()
     cursor.execute('SELECT id, username, auth_role_id FROM users WHERE access_jti = (%s)', (sub,))
@@ -67,7 +70,7 @@ def get_logged_in_user(cnx, sub):
         raise Exception('User not found!')
     return {'id': user[0], 'username': user[1], 'role': user[2]}
 
-
+# db query for deleting user
 def remove_user_by_id(cnx, user_id):
     cursor = None
     try:
